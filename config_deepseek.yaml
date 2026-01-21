@@ -1,0 +1,71 @@
+# Qwen3 NL2SQL DeepSeek GRPO 过程奖励微调 - 配置文件（优化版）
+
+# ========== 模型配置 ==========
+model_name: "/lpai/models/Qwen__Qwen3-1.7B/main"
+torch_dtype: "bfloat16"
+load_in_4bit: false
+load_in_8bit: false
+trust_remote_code: true
+
+# ========== 数据配置 ==========
+train_file: "./data/nl2_sql_cold_start_sft_all_train_swift_9501_1231.json"
+test_file: "./data/nl2_sql_cold_start_sft_all_test_swift_830_1231.json"
+val_split: 0.1
+
+# ========== 训练配置 ==========
+output_dir: "./outputs/deepseek_checkpoints"
+num_train_epochs: 3
+per_device_train_batch_size: 4
+per_device_eval_batch_size: 8
+gradient_accumulation_steps: 4
+learning_rate: 5e-6
+lr_scheduler_type: "cosine"
+warmup_steps: 100
+max_grad_norm: 1.0
+weight_decay: 0.01
+bf16: true
+tf32: true
+
+# ========== DeepSeek 配置（优化：减少迭代以加速） ==========
+deepseek_max_rounds: 2  # 减少最大轮次 3→2
+deepseek_n_generations_per_round: 1  # 减少每轮生成 2→1
+deepseek_n_verifications_per_generation: 1  # 减少验证次数 2→1
+deepseek_process_reward_weight: 0.7
+deepseek_final_reward_weight: 0.3
+
+# ========== VLM验证器配置 ==========
+vlm_enabled: true  # 启用VLM验证器
+vlm_model_path: "/lpai/models/Qwen3-1.7B-SFT/main"  # SFT微调后的模型路径
+vlm_verification_weight: 0.8  # VLM验证权重（vs 规则验证权重 0.2）
+
+# ========== GRPO 配置 ==========
+num_generations: 4
+temperature: 0.7
+top_p: 0.95
+top_k: 50
+max_new_tokens: 1024
+
+# ========== 评估和保存配置 ==========
+eval_steps: 200
+save_steps: 200
+save_total_limit: 3
+logging_steps: 20
+logging_dir: "./outputs/logs"
+
+# ========== TensorBoard 配置 ==========
+tensorboard_port: 6007
+auto_start_tensorboard: true
+tensorboard_log_dir: "./outputs/deepseek_checkpoints/logs"
+
+# ========== W&B 配置 ==========
+wandb_enabled: false  # 禁用W&B以减少日志输出
+wandb_project: "qwen3-nl2sql-deepseek-grpo"
+wandb_entity: null
+wandb_name: "deepseek_process_reward_training"
+
+# ========== 硬件配置 ==========
+num_gpus: 8
+seed: 42
+
+# ========== 检查点配置 ==========
+resume_from_checkpoint: null

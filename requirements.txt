@@ -1,0 +1,40 @@
+# ========== PyTorch & Core ==========
+torch>=2.8.0
+torchvision>=0.17.0
+torchaudio>=2.2.0
+
+# ========== Transformers & LLM (Hugging Face) ==========
+transformers>=4.57.0
+datasets>=3.0.0
+tokenizers>=0.22.0
+sentencepiece>=0.2.0
+
+# ========== 强化学习训练 ==========
+trl>=0.26.2
+peft>=0.18.0
+accelerate>=1.12.0
+bitsandbytes>=0.44.0
+
+# ========== 实验追踪 & 监控 ==========
+wandb>=0.24.0
+tensorboard>=2.15.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# ========== 数据处理 ==========
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.5.0
+
+# ========== SQL 解析 ==========
+sqlparse>=0.5.0
+
+# ========== 工具库 ==========
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+pyyaml>=6.0.0
+tqdm>=4.66.0
+
+# ========== 可选：高性能库 ==========
+einops>=0.8.0
+omegaconf>=2.3.0

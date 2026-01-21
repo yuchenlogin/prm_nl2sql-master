@@ -1,0 +1,200 @@
+# Qwen3 NL2SQL 过程奖励微调 - 配置文件（2025年12月更新）
+
+# ========== 模型配置 ==========
+model:
+  # Qwen3系列最新模型（来自Alibaba Qwen）
+  # 核心功能：thinking/non-thinking模式无缝切换
+  # 模型来源：https://huggingface.co/Qwen/Qwen3-1.7B
+
+  name: "Qwen/Qwen3-1.7B"  # Qwen3-1.7B支持thinking模式
+  trust_remote_code: true
+  load_in_8bit: false
+  load_in_4bit: false
+  torch_dtype: "bfloat16"
+  attn_implementation: "flash_attention_2"
+
+  # 序列长度配置
+  max_seq_length: 32768  # Qwen3支持32K上下文
+  rope_scaling:
+    type: "linear"
+    factor: 1.0
+
+# ========== 数据配置 ==========
+data:
+  train_file: "./data/nl2_sql_cold_start_sft_all_train_swift_9501_1231.json"
+  test_file: "./data/nl2_sql_cold_start_sft_all_test_swift_830_1231.json"
+  processed_dir: "./data/processed"
+
+  # 数据分割
+  val_split: 0.1
+  preprocessing_batch_size: 1000
+
+  # 缓存设置
+  cache_dir: "./data/cache"
+  overwrite_cache: false
+
+# ========== 训练配置（8卡A100-SXM4-80GB优化）==========
+training:
+  # 基础参数
+  output_dir: "./outputs/checkpoints"
+  num_train_epochs: 3
+  max_steps: -1
+
+  # 批次大小（针对A100优化）
+  # 8 GPU × batch_size 2 × grad_accum 8 = 有效批次128
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 8
+  total_batch_size: 128
+
+  # 学习率配置
+  learning_rate: 7.3e-6
+  lr_scheduler_type: "cosine"
+  warmup_steps: 100
+  warmup_ratio: 0.1
+
+  # 优化器（使用8bit优化器节省显存）
+  optim: "adamw_8bit"
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+  # 混合精度训练（A100原生支持bfloat16）
+  bf16: true
+  tf32: true  # 使用TensorFloat-32加速
+
+  # 评估和保存策略
+  eval_strategy: "steps"
+  eval_steps: 100
+  save_strategy: "steps"
+  save_steps: 100
+  save_total_limit: 3
+
+  # 日志
+  logging_steps: 10
+  logging_dir: "./outputs/logs"
+
+  # 硬件配置
+  dataloader_num_workers: 8
+  dataloader_pin_memory: true
+  remove_unused_columns: false
+
+  # 分布式训练（DDP）
+  ddp_find_unused_parameters: false
+  ddp_backend: "nccl"  # A100最优的后端
+  nccl_timeout: 3600
+
+  # 其他
+  seed: 42
+  report_to: ["wandb", "tensorboard"]
+
+# ========== GRPO 配置（Group Relative Policy Optimization）==========
+grpo:
+  # 生成参数（用于 GRPO 中 group 相对比较）
+  num_generations: 4          # 每个样本生成4个候选
+  # 对齐 Qwen3 thinking 模式推荐的采样设置
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+  max_new_tokens: 1024
+
+  # 奖励加权配置（总和应为1.0）
+  reward_weights:
+    type_reward: 0.20              # 类型预测准确度（简单 vs 多步推理）
+    thinking_reward: 0.25          # 推理过程质量（<think>部分）
+    self_assessment_reward: 0.25   # 自我评估准确度
+    sql_structure_reward: 0.30     # SQL结构质量（关键）
+
+# ========== 评估配置 ==========
+evaluation:
+  eval_dataset_split: "test"
+  num_eval_samples: -1  # -1 表示评估全部测试集
+
+  # 评估指标
+  metrics:
+    - "type_accuracy"                # 类型分类准确率
+    - "sql_validity"                 # SQL有效性评分
+    - "thinking_quality"             # 推理过程质量评分
+    - "self_assessment_accuracy"     # 自我评估准确率
+    - "overall_reward"               # 总体奖励评分
+
+  # 推理样本展示
+  generate_samples: 5
+
+# ========== W&B 配置（Weights & Biases 实验追踪）==========
+wandb:
+  enabled: false
+  project: "qwen3-nl2sql-grpo"
+  entity: null  # 改为你的wandb entity (username)
+
+  # 实验名称和说明
+  name: "qwen3_process_reward_experiment"
+  notes: |
+    验证过程奖励方法对NL2SQL任务的效果
+    使用GRPO训练算法
+    关注：推理过程质量、类型准确度、自我评估能力
+
+  # 标签（便于后续筛选和对比）
+  tags:
+    - "nl2sql"
+    - "process_reward"
+    - "qwen3"
+    - "grpo"
+    - "2025"
+
+  # 日志频率
+  log_frequency: 10        # 每10步记录一次
+  log_model: true          # 保存模型工件
+
+  # 日志内容
+  log_metrics:
+    - loss
+    - learning_rate
+    - gpu_memory
+    - reward_breakdown     # 奖励各部分的贡献
+
+# ========== 检查点配置 ==========
+checkpoint:
+  resume_from_checkpoint: null  # 若要恢复训练，设置为路径
+  save_best_model: true
+  best_model_metric: "eval_type_accuracy"
+  greater_is_better: true
+
+  # 自动保存最佳模型
+  metric_name: "eval_type_accuracy"
+
+# ========== 推理配置 ==========
+inference:
+  device: "cuda"
+  batch_size: 8
+  temperature: 0.7
+  top_p: 0.95
+  max_tokens: 1024
+
+  # 生成参数
+  num_beams: 1  # 1为贪心搜索，>1为束搜索
+  do_sample: true
+
+# ========== 日志配置 ==========
+logging:
+  level: "INFO"
+  dir: "./outputs/logs"
+  file_mode: "a"
+  use_tensorboard: true
+  tensorboard_port: 6007  # TensorBoard监听端口
+  auto_start_tensorboard: true  # 是否自动启动TensorBoard
+
+  # 每个主要操作添加时间戳
+  include_timestamp: true
+
+# ========== 系统配置 ==========
+system:
+  seed: 42
+  deterministic: true
+  pin_memory: true
+
+  # GPU配置
+  num_gpus: 8
+  gpu_ids: "0,1,2,3,4,5,6,7"  # 8卡A100
+
+  # 混合精度
+  mixed_precision: "bfloat16"
